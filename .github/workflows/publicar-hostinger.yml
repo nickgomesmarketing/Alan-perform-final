@@ -1,0 +1,52 @@
+# Publica o site na Hostinger (performsolucoeseletricas.com.br) a cada atualização da branch main.
+# Os dados de acesso ficam em Settings > Secrets and variables > Actions:
+#   FTP_SERVER   servidor FTP da Hostinger (ex.: ftp.performsolucoeseletricas.com.br ou o IP do painel)
+#   FTP_USERNAME usuário FTP
+#   FTP_PASSWORD senha FTP
+name: Publicar site na Hostinger
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: publicar-hostinger
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o site do repositório
+        uses: actions/checkout@v4
+
+      - name: Conferir se os dados de FTP foram cadastrados
+        id: dados
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          if [ -n "$FTP_SERVER" ] && [ -n "$FTP_USERNAME" ] && [ -n "$FTP_PASSWORD" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Faltam os dados de FTP (FTP_SERVER, FTP_USERNAME, FTP_PASSWORD). Nada foi publicado."
+          fi
+
+      - name: Enviar arquivos para a public_html
+        if: steps.dados.outputs.ok == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          security: loose
+          local-dir: ./
+          server-dir: ${{ vars.FTP_PASTA || 'public_html/' }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
